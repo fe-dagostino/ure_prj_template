@@ -1,0 +1,3 @@
+[submodule "submodules/ure"]
+	path = submodules/ure
+	url = https://github.com/fe-dagostino/ure.git
