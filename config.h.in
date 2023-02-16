@@ -1,0 +1,8 @@
+#ifndef PRJ_CONFIG_H
+#define PRJ_CONFIG_H
+
+#define PRJ_VERSION_MAJOR           @@prjname@_VERSION_MAJOR@
+#define PRJ_VERSION_MINOR           @@prjname@_VERSION_MINOR@
+#define PRJ_VERSION_PATCH           @@prjname@_VERSION_PATCH@
+
+#endif //PRJ_CONFIG_H
