@@ -23,6 +23,7 @@
 
 #include <ure_application.h>
 #include <ure_resources_fetcher.h>
+#include <ure_resources_collector.h>
 #include <ure_window.h>
 #include <ure_view_port.h>
 #include <ure_position.h>
@@ -82,11 +83,12 @@ protected:
 // ure::ResourcesFetcherEvents implementation
 protected:  
   /***/
-  virtual ure::void_t on_download_succeeded( [[maybe_unused]] const std::string& name, [[maybe_unused]] const ure::byte_t* data, [[maybe_unused]] ure::uint_t length ) override;
+  virtual ure::void_t on_download_succeeded( [[maybe_unused]] const std::string& name, [[maybe_unused]] const std::type_info& type, [[maybe_unused]] const ure::byte_t* data, [[maybe_unused]] ure::uint_t length ) noexcept(true) override;
   /***/
-  virtual ure::void_t on_download_failed   ( [[maybe_unused]] const std::string& name ) override;
+  virtual ure::void_t on_download_failed   ( [[maybe_unused]] const std::string& name ) noexcept(true) override;
 
 private:
+  ure::ResourcesCollector     m_rc;
   bool                        m_bFullScreen;
   ure::position_t<ure::int_t> m_position;
   ure::Size                   m_size;

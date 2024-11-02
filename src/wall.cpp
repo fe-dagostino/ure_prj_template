@@ -26,7 +26,6 @@
 #include <ure_utils.h>
 #include <ure_image.h>
 #include <ure_texture.h>
-#include <ure_resources_collector.h>
 #include <ure_scene_graph.h>
 #include <ure_scene_layer_node.h>
 #include <widgets/ure_layer.h>
@@ -70,7 +69,7 @@ void Wall::init( [[__maybe_unused__]] int argc, [[__maybe_unused__]] char** argv
   const std::string sShadersPath( "./resources/shaders/" );
   const std::string sMediaPath  ( "./resources/media/" );
 
-  ure::Application::initialize( core::unique_ptr<ure::ApplicationEvents>(this,false), sShadersPath, sMediaPath );
+  ure::Application::initialize( core::unique_ptr<ure::ApplicationEvents>(this,false), sShadersPath );
 
   //
   m_pWindow = new(std::nothrow) ure::Window();
@@ -91,7 +90,7 @@ void Wall::init( [[__maybe_unused__]] int argc, [[__maybe_unused__]] char** argv
                 m_size 
         );
   
-  m_pWindow->create( std::move(options), static_cast<ure::enum_t>(ure::Window::ProcessingFlags::epfCalling) );
+  m_pWindow->create( std::move(options), static_cast<ure::enum_t>(ure::Window::processing_flag_t::epfCalling) );
   m_pWindow->set_swap_interval(1);
 
   //////////////////////////////////////////////////////////////////////////
@@ -114,8 +113,8 @@ void Wall::init( [[__maybe_unused__]] int argc, [[__maybe_unused__]] char** argv
 
   //////////////////////////////////////////////////////////////////////////
 
-  ure::SceneGraph* pSceneGraph = new(std::nothrow) ure::SceneGraph();
-  if ( pSceneGraph == nullptr )
+  std::unique_ptr<ure::SceneGraph> ptrSceneGraph = std::make_unique<ure::SceneGraph>();
+  if ( ptrSceneGraph == nullptr )
   {
     ure::utils::log( "Unable to allocate SceneGraph" );
     return ;
@@ -123,9 +122,8 @@ void Wall::init( [[__maybe_unused__]] int argc, [[__maybe_unused__]] char** argv
 
   glm::mat4 mProjection = glm::perspectiveFov(45.0f, (float)m_size.width, (float)m_size.height, 0.1f, 500.0f);
 
-  m_pViewPort   = new(std::nothrow) ure::ViewPort( pSceneGraph, mProjection );
+  m_pViewPort   = new(std::nothrow) ure::ViewPort( std::move(ptrSceneGraph), mProjection );
   if ( m_pViewPort == nullptr )
-  if ( pSceneGraph == nullptr )
   {
     ure::utils::log( "Unable to allocate ViewPort" );
     return ;
@@ -144,14 +142,14 @@ void Wall::loadResources()
 
   bkImage.load( ure::Image::loader_t::eStb, "./resources/media/images/wall.jpg" );
 
-  ure::Texture*  pTexture = new(std::nothrow) ure::Texture( std::move(bkImage) );
+  std::unique_ptr<ure::Texture>  ptrTexture = std::make_unique<ure::Texture>( std::move(bkImage) );
 
-  ure::ResourcesCollector::get_instance()->attach("wall", pTexture);  
+  m_rc.attach<ure::Texture>("wall", std::move(ptrTexture) );  
 }
 
 void Wall::addCamera()
 {
-  ure::Camera*  pCamera =  new ure::Camera( true );
+  std::unique_ptr<ure::Camera>  camera =  std::make_unique<ure::Camera>( true );
 
   glm::vec3 cameraPosition = glm::vec3(0,0,2);  // Camera is at (0,0,1), in World Space
   glm::vec3 cameraTarget   = glm::vec3(0,0,0);  // and looks at the origin
@@ -162,33 +160,33 @@ void Wall::addCamera()
                                           cameraTarget,   // where you want to look at, in world space
                                           upVector        // probably glm::vec3(0,1,0), but (0,-1,0) would make you looking upside-down, which can be great too
                                       );
-  pCamera->set_view_matrix( CameraMatrix );
+  camera->set_view_matrix( CameraMatrix );
 
-  m_pViewPort->get_scene()->add_scene_node( new ure::SceneCameraNode( "MainCamera", pCamera ) );
+  m_pViewPort->get_scene().add_scene_node( new ure::SceneCameraNode( "MainCamera", std::move(camera) ) );
 }
 
 void Wall::addLevel0()
 {
-  ure::widgets::Layer* pLayer = new(std::nothrow) ure::widgets::Layer( *m_pViewPort );
-  
-  m_pWindow->connect(pLayer);
+  std::shared_ptr<ure::widgets::Layer> layer = std::make_shared<ure::widgets::Layer>( *m_pViewPort );
 
-  pLayer->set_visible( true );
-  pLayer->set_enabled( true );
+  m_pWindow->connect(layer->get_windows_events());
 
-  pLayer->set_position( -1.0f*m_size.width/2, -1.0f*m_size.height/2, true );
+  layer->set_visible( true );
+  layer->set_enabled( true );
 
-  ure::Texture* pTexture = ure::ResourcesCollector::get_instance()->find<ure::Texture>("wall");
-  
-  pLayer->set_background( pTexture, ure::widgets::Widget::BackgroundOptions::eboAsIs );
+  layer->set_position( -1.0f*m_size.width/2, -1.0f*m_size.height/2, true );
 
-  ure::SceneLayerNode* pNode = new(std::nothrow) ure::SceneLayerNode( "Layer1", pLayer );
+  auto texture = m_rc.find<ure::Texture>("wall");
+  if ( texture.has_value() )
+    layer->set_background( texture.value(), ure::widgets::Widget::BackgroundOptions::eboAsIs );
+
+  ure::SceneLayerNode* pNode = new(std::nothrow) ure::SceneLayerNode( "Layer1", layer );
   
   glm::mat4 mModel =  glm::ortho( -1.0f*(float)m_size.width/2, (float)m_size.width/2, (float)m_size.height/2, -1.0f*(float)m_size.height/2, 0.1f, 1000.0f );
   pNode->set_model_matrix( mModel );
   pNode->get_model_matrix().translate( 0, 0, 0 );
 
-  m_pViewPort->get_scene()->add_scene_node( pNode );  
+  m_pViewPort->get_scene().add_scene_node( pNode );  
 }
 
 /////////////////////////////////////////////////////
@@ -206,7 +204,7 @@ ure::void_t  Wall::on_mouse_scroll( [[maybe_unused]] ure::Window* pWindow, [[may
 
 ure::void_t Wall::on_initialize() 
 {
-  ure::ResourcesFetcher::initialize( core::unique_ptr<ure::ResourcesFetcherEvents>(this,false) );
+  ure::ResourcesFetcher::initialize();
 }
 
 ure::void_t Wall::on_initialized() 
@@ -225,9 +223,9 @@ ure::void_t Wall::on_finalized()
 
 ure::void_t Wall::on_run()
 {
-  if ( m_pWindow->check( ure::Window::WindowFlags::eWindowShouldClose ) )
+  if ( m_pWindow->check( ure::Window::window_flag_t::eWindowShouldClose ) )
   {
-    ure::Application::get_instance()->quit(true);
+    ure::Application::get_instance()->exit(true);
   }
 
   m_pWindow->get_framebuffer_size( m_fb_size );
@@ -237,7 +235,7 @@ ure::void_t Wall::on_run()
   m_pViewPort->use();
 
   // Update background color
-  m_pViewPort->get_scene()->set_background( 0.2f, 0.2f, 0.2f, 0.0f );
+  m_pViewPort->get_scene().set_background( 0.2f, 0.2f, 0.2f, 0.0f );
 
   ///////////////
   m_pViewPort->clear_buffer( GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT );
@@ -275,12 +273,12 @@ ure::void_t Wall::on_finalize_error(/* @todo */)
 // ure::ResourcesFetcherEvents implementation
 /////////////////////////////////////////////////////
 
-ure::void_t Wall::on_download_succeeded( [[maybe_unused]] const std::string& name, [[maybe_unused]] const ure::byte_t* data, [[maybe_unused]] ure::uint_t length ) 
+ure::void_t Wall::on_download_succeeded( [[maybe_unused]] const std::string& name, [[maybe_unused]] const std::type_info& type, [[maybe_unused]] const ure::byte_t* data, [[maybe_unused]] ure::uint_t length ) noexcept(true)
 {
 
 }
 
-ure::void_t Wall::on_download_failed   ( [[maybe_unused]] const std::string& name ) 
+ure::void_t Wall::on_download_failed   ( [[maybe_unused]] const std::string& name ) noexcept(true)
 {
 
 }
